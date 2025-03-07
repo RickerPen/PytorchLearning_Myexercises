@@ -1,2 +1,4 @@
 # Generating Names with a Character-Level RNN
-From pytorch official tutorial：`https://pytorch.org/tutorials/intermediate/char_rnn_generation_tutorial.html`
+## Original is From pytorch official tutorial：`https://pytorch.org/tutorials/intermediate/char_rnn_generation_tutorial.html`
+## E1 uses CUDA to accelerate training:  
+Total running time from **9m 12.745s** to **7m 20s**
