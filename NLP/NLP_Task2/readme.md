@@ -6,4 +6,4 @@ Total running time from **3m 53s** to **7m 20s**. Monitor the GPU using `gpustat
 ## E_2 uses a "SOS" token so that sampling can be done without a start letter:  
 Adjust InputTensor's first input from the first letter to 'SOS' token, and its corresponding TargetTensor is the first letter. 
 ## E_3 replaces RNN with LSTM or GRU:
-*08/03/2025,15:40* : Since the original script mainly uses `nn.linear` to create its customized RNN rather than using `nn.RNN` directly, it's hard to recreate the network by using `nn.LSTM` . The whole network should be changed and the output format needs to be same as originals. 
+*08/03/2025,15:40* : Since the original script mainly uses `nn.linear` to create its customized RNN rather than using `nn.RNN` directly, it's hard to recreate the network by using `nn.LSTM` . The whole network needs to be changed and the output format should be same as originals. 
