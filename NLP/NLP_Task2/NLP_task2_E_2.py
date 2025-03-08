@@ -5,7 +5,7 @@ import unicodedata
 import string
 
 all_letters = string.ascii_letters + " .,;'-"
-n_letters = len(all_letters) + 1 # Plus EOS marker
+n_letters = len(all_letters) + 1  # Plus EOS marker and SOS marker, they use the same marker(len(n_letters)).
 
 def findFiles(path): return glob.glob(path)
 
@@ -85,17 +85,18 @@ def categoryTensor(category):
     tensor[0][li] = 1
     return tensor
 
-# One-hot matrix of first to last letters (not including EOS) for input
+# One-hot matrix of first to last letters (not including EOS) for input. For E_2, we need inputtensor start with SOS 
 def inputTensor(line):
-    tensor = torch.zeros(len(line), 1, n_letters)
+    tensor = torch.zeros(len(line)+1, 1, n_letters)
+    tensor[0][0][n_letters-1] = 1
     for li in range(len(line)):
         letter = line[li]
-        tensor[li][0][all_letters.find(letter)] = 1
+        tensor[li+1][0][all_letters.find(letter)] = 1
     return tensor
 
-# ``LongTensor`` of second letter to end (EOS) for target
+# ``LongTensor`` of second letter to end (EOS) for target. For E_2,from the first letter to end(EOS) should be included in the TargetTensor
 def targetTensor(line):
-    letter_indexes = [all_letters.find(line[li]) for li in range(1, len(line))]
+    letter_indexes = [all_letters.find(line[li]) for li in range(len(line))]
     letter_indexes.append(n_letters - 1) # EOS
     return torch.LongTensor(letter_indexes)
 # Make category, input, and target tensors from a random category, line pair
@@ -165,7 +166,7 @@ plt.plot(all_losses)
 max_length = 20
 
 # Sample from a category and starting letter
-def sample(category, start_letter='A'):
+def sample(category, start_letter=''): # Set start_letter empty
     with torch.no_grad():  # no need to track history in sampling
         category_tensor = categoryTensor(category)
         input = inputTensor(start_letter)
@@ -187,14 +188,20 @@ def sample(category, start_letter='A'):
         return output_name
 
 # Get multiple samples from one category and multiple starting letters
-def samples(category, start_letters='ABC'):
-    for start_letter in start_letters:
-        print(sample(category, start_letter))
+#def samples(category, start_letters='ABC'):
+ #   for start_letter in start_letters:
+  #      print(sample(category, start_letter))
 
-samples('Russian', 'RUS')
+#samples('Russian', 'RUS')
 
-samples('German', 'GER')
+#samples('German', 'GER')
 
-samples('Spanish', 'SPA')
+#samples('Spanish', 'SPA')
 
-samples('Chinese', 'CHI')
+#samples('Chinese', 'CHI')
+def samples(category， n_generations=3):
+    print(category)
+    for i in range(n_generations):
+        print(sample('Russian'))
+        
+samples('Russian')
