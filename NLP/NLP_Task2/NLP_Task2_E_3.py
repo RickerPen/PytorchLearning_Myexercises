@@ -43,29 +43,60 @@ print(unicodeToAscii("O'Néàl"))
 import torch
 import torch.nn as nn
 
-class RNN(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
-        super(RNN, self).__init__()
+class LSTM_Improved(nn.Module):
+    def __init__(self, n_categories, input_size, hidden_size, output_size):
+        super(LSTM_Improved, self).__init__()
         self.hidden_size = hidden_size
+        self.n_categories = n_categories
 
-        self.i2h = nn.Linear(n_categories + input_size + hidden_size, hidden_size)
-        self.i2o = nn.Linear(n_categories + input_size + hidden_size, output_size)
-        self.o2o = nn.Linear(hidden_size + output_size, output_size)
+        # 关键修改 1: 用LSTM替代原始RNN计算
+        self.lstm = nn.LSTM(
+            input_size=input_size + n_categories,  # 输入维度增加类别信息
+            hidden_size=hidden_size,
+            batch_first=True  # 保持(batch, seq, features)格式
+        )
+        
+        # 关键修改 2: 调整输出层适配LSTM输出
+        self.fc = nn.Linear(hidden_size, output_size)
         self.dropout = nn.Dropout(0.1)
         self.softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, category, input, hidden):
-        input_combined = torch.cat((category, input, hidden), 1)
-        hidden = self.i2h(input_combined)
-        output = self.i2o(input_combined)
-        output_combined = torch.cat((hidden, output), 1)
-        output = self.o2o(output_combined)
-        output = self.dropout(output)
-        output = self.softmax(output)
-        return output, hidden
+        """
+        保持与原始RNN完全相同的输入输出接口：
+        - 输入: 
+            category: (batch_size, n_categories)
+            input:    (batch_size, input_size)
+            hidden:   (h: (1, batch_size, hidden_size), c: (1, batch_size, hidden_size))
+        - 输出:
+            output:   (batch_size, output_size)
+            hidden:   更新后的LSTM隐藏状态
+        """
+        # 维度转换确保兼容性
+        batch_size = input.size(0)
+        
+        # 关键修改 3: 将类别信息与输入拼接
+        combined = torch.cat([category, input], dim=1)  # (batch, n_cat+input_size)
+        combined = combined.unsqueeze(1)  # 添加序列维度 -> (batch, 1, n_cat+input_size)
+        
+        # LSTM前向传播
+        # lstm_out: (batch, seq_len=1, hidden_size)
+        # hidden: (h_n, c_n) 每个的形状都是(1, batch, hidden_size)
+        lstm_out, hidden = self.lstm(combined, hidden)
+        
+        # 关键修改 4: 处理输出层
+        out = self.fc(lstm_out.squeeze(1))  # 移除序列维度
+        out = self.dropout(out)
+        out = self.softmax(out)
+        return out, hidden
 
-    def initHidden(self):
-        return torch.zeros(1, self.hidden_size)
+    def initHidden(self, batch_size=1):
+        """返回与原始RNN兼容的隐藏状态格式"""
+        # LSTM需要返回元组(h_0, c_0)
+        return (
+            torch.zeros(1, batch_size, self.hidden_size),  # h0
+            torch.zeros(1, batch_size, self.hidden_size)   # c0
+        )
     
 import random
 
@@ -111,20 +142,20 @@ learning_rate = 0.0005
 
 def train(category_tensor, input_line_tensor, target_line_tensor):
     target_line_tensor.unsqueeze_(-1)
-    hidden = rnn.initHidden()
+    hidden = lstm.initHidden()
 
-    rnn.zero_grad()
+    lstm.zero_grad()
 
     loss = torch.Tensor([0]) # you can also just simply use ``loss = 0``
 
     for i in range(input_line_tensor.size(0)):
-        output, hidden = rnn(category_tensor, input_line_tensor[i], hidden)
+        output, hidden = lstm(category_tensor, input_line_tensor[i], hidden)
         l = criterion(output, target_line_tensor[i])
         loss += l
 
     loss.backward()
 
-    for p in rnn.parameters():
+    for p in lstm.parameters():
         p.data.add_(p.grad.data, alpha=-learning_rate)
 
     return output, loss.item() / input_line_tensor.size(0)
@@ -137,7 +168,7 @@ def timeSince(since):
     m = math.floor(s / 60)
     s -= m * 60
     return '%dm %ds' % (m, s)
-rnn = RNN(n_letters, 128, n_letters)
+lstm = LSTM_Improved(n_categories,n_letters, 128, n_letters)
 
 n_iters = 100000
 print_every = 5000
@@ -169,12 +200,12 @@ def sample(category, start_letter='A'):
     with torch.no_grad():  # no need to track history in sampling
         category_tensor = categoryTensor(category)
         input = inputTensor(start_letter)
-        hidden = rnn.initHidden()
+        hidden = lstm.initHidden()
 
         output_name = start_letter
 
         for i in range(max_length):
-            output, hidden = rnn(category_tensor, input[0], hidden)
+            output, hidden = lstm(category_tensor, input[0], hidden)
             topv, topi = output.topk(1)
             topi = topi[0][0]
             if topi == n_letters - 1:
